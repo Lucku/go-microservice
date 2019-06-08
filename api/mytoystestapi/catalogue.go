@@ -1,6 +1,7 @@
 package mytoystestapi
 
 import (
+	"github.com/spf13/viper"
 	"encoding/json"
 	"io/ioutil"
 	"log"
@@ -10,7 +11,6 @@ import (
 )
 
 // TODO read from some config
-const apiKey = "hz7JPdKK069Ui1TRxxd1k8BQcocSVDkj219DVzzD"
 const apiURL = "https://mytoysiostestcase1.herokuapp.com/api/navigation"
 
 // Response is the root of the JSON message of the catalogue
@@ -27,9 +27,14 @@ type NavigationEntry struct {
 	Children []NavigationEntry `json:"children"`
 }
 
-// GetAllLinks consumes the catalogue API and processes its results by filtering out all link entries in
-// the JSON tree of entries
-func GetAllLinks() ([]NavigationEntry, error) {
+// GetCatalogue queries the catalogue API and marshals its data
+func GetCatalogue() (*Response, error) {
+
+	apiKey := viper.GetString("apiKey")
+
+	if apiKey == "" {
+		return nil, errors.New("Error due to undefined api key in the config file")
+	}
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	req.Header.Set("x-api-key", apiKey)
@@ -53,31 +58,11 @@ func GetAllLinks() ([]NavigationEntry, error) {
 		return nil, errors.Wrap(err, "Error while processing catalogue response")
 	}
 
-	var data Response
+	data := new(Response)
 
 	if err := json.Unmarshal(body, &data); err != nil {
 		return nil, errors.Wrap(err, "Error due to invalid catalogue data format")
 	}
 
-	leafs := make([]NavigationEntry, 0)
-
-	for _, e := range data.NavigationEntries {
-		traverseLinks(e, &leafs)
-	}
-
-	return leafs, nil
-}
-
-func traverseLinks(entry NavigationEntry, leafs *[]NavigationEntry) {
-
-	if entry.TypeName == "link" {
-		*leafs = append(*leafs, entry)
-	}
-
-	if len(entry.Children) > 0 {
-		for _, subentry := range entry.Children {
-			traverseLinks(subentry, leafs)
-		}
-		traverseLinks(entry.Children[len(entry.Children)-1], leafs)
-	}
+	return data, nil
 }

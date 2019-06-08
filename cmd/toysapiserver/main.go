@@ -1,16 +1,14 @@
 package main
 
 import (
-	"fmt"
+	"log"
 
-	"github.com/lucku/otto-coding-challenge/api/mytoystestapi"
+	"github.com/lucku/otto-coding-challenge/server"
 )
 
-/* Start server, nothing more */
-
+// Start server, nothing more
 func main() {
-
-	test := mytoystestapi.GetAllLinks()
-
-	fmt.Println(test)
+	if err := server.Start(); err != nil {
+		log.Fatal(err)
+	}
 }
