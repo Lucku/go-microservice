@@ -1,11 +1,12 @@
 package mytoystestapi
 
 import (
-	"github.com/spf13/viper"
 	"encoding/json"
 	"io/ioutil"
 	"log"
 	"net/http"
+
+	"github.com/spf13/viper"
 
 	"github.com/pkg/errors"
 )
