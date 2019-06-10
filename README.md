@@ -1,1 +1,1 @@
-# otto-coding-challenge
+# Otto Rest API

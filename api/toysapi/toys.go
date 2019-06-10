@@ -4,8 +4,10 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/apex/log"
+
 	"github.com/go-chi/render"
-	"github.com/lucku/otto-coding-challenge/api/mytoystestapi"
+	"github.com/lucku/otto-coding-challenge/api/catalogueapi"
 )
 
 // Response is the returned message of the API
@@ -19,40 +21,49 @@ type CategoryEntry struct {
 	URL   string `json:"url"`
 }
 
-// GetLinks outputs all the links in an unmodified format
-func GetLinks(w http.ResponseWriter, r *http.Request) {
+// ToysAPI is wrapping the functionality of the ToysAPI
+type ToysAPI struct {
+	catalogue catalogueapi.Catalogue
+}
 
-	data, err := mytoystestapi.GetCatalogue()
+// NewToysAPI returns a new instance of the toys api
+func NewToysAPI() *ToysAPI {
+	return &ToysAPI{catalogueapi.CatalogueImpl{}}
+}
+
+// GetLinks outputs all the links in an unmodified format
+func (t ToysAPI) GetLinks(w http.ResponseWriter, r *http.Request) {
+
+	data, err := t.catalogue.RequestCatalogue()
 
 	if err != nil {
-		http.Error(w, http.StatusText(503), 503)
+		log.Errorf("Error retrieving data from Catalogue API: %s", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	entries, err := handleParentParam(data, w, r)
 
 	if err != nil {
-		// LOG ERROR
-		http.Error(w, http.StatusText(400), 400)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	if err := handleSortParam(entries, w, r); err != nil {
-		// LOG ERROR
-		http.Error(w, http.StatusText(400), 400)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	render.JSON(w, r, entries)
 }
 
-func handleParentParam(input *mytoystestapi.Response, w http.ResponseWriter, r *http.Request) ([]CategoryEntry, error) {
+func handleParentParam(input *catalogueapi.Response, w http.ResponseWriter, r *http.Request) ([]CategoryEntry, error) {
 
 	parent := r.URL.Query().Get("parent")
 
 	leafs := make([]CategoryEntry, 0)
 
-	n := mytoystestapi.NavigationEntry{Children: input.NavigationEntries}
+	n := catalogueapi.NavigationEntry{Children: input.NavigationEntries}
 
 	if parent == "" {
 		traverseCatalogue(&n, &leafs, parent, true)
@@ -61,13 +72,17 @@ func handleParentParam(input *mytoystestapi.Response, w http.ResponseWriter, r *
 	}
 
 	if len(leafs) == 0 {
+		log.WithFields(log.Fields{
+			"parameter": parent,
+		}).Debugf("Invalid 'parent' parameter")
+
 		return nil, errors.New("Invalid parent argument")
 	}
 
 	return leafs, nil
 }
 
-func traverseCatalogue(entry *mytoystestapi.NavigationEntry, leafs *[]CategoryEntry, parent string, found bool) {
+func traverseCatalogue(entry *catalogueapi.NavigationEntry, leafs *[]CategoryEntry, parent string, found bool) {
 
 	if entry.TypeName == "link" {
 

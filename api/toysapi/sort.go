@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/apex/log"
 )
 
 const (
@@ -29,6 +31,10 @@ func handleSortParam(input []CategoryEntry, w http.ResponseWriter, r *http.Reque
 	sortArgs := strings.Split(sortParam, ",")
 
 	if len(sortArgs) > 2 {
+		log.WithFields(log.Fields{
+			"numArgs": len(sortArgs),
+		}).Debugf("Too many arguments for sorting")
+
 		return errors.New("Invalid numbers of sorting arguments")
 	}
 

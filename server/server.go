@@ -1,11 +1,10 @@
 package server
 
 import (
-	"log"
 	"net/http"
 	"strings"
 
-	"github.com/go-chi/chi"
+	"github.com/apex/log"
 	"github.com/spf13/viper"
 )
 
@@ -16,19 +15,13 @@ func Start() error {
 		return err
 	}
 
+	InitLogging()
+
 	router := Routes()
 
-	// DEBUG: DELETE AT SOME POINT
-	walkFunc := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-		log.Printf("%s %s\n", method, route)
-		return nil
-	}
-	if err := chi.Walk(router, walkFunc); err != nil {
-		log.Panicf("Logging err: %s\n", err.Error())
-	}
-	// DEBUG END
-
 	port := viper.GetString("port")
+
+	log.Infof("Server started on port %s", port)
 
 	if err := http.ListenAndServe(":"+port, router); err != nil {
 		return err
@@ -54,6 +47,14 @@ func LoadConfig() error {
 	}
 
 	viper.SetDefault("port", 8080)
+	viper.SetDefault("logging-level", "info")
 
 	return nil
+}
+
+func InitLogging() {
+
+	logLevel := viper.GetString("logging-level")
+
+	log.SetLevelFromString(logLevel)
 }

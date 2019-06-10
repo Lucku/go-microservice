@@ -1,17 +1,14 @@
-package mytoystestapi
+package catalogueapi
 
 import (
 	"encoding/json"
 	"io/ioutil"
-	"log"
 	"net/http"
 
-	"github.com/spf13/viper"
-
 	"github.com/pkg/errors"
+	"github.com/spf13/viper"
 )
 
-// TODO read from some config
 const apiURL = "https://mytoysiostestcase1.herokuapp.com/api/navigation"
 
 // Response is the root of the JSON message of the catalogue
@@ -28,8 +25,17 @@ type NavigationEntry struct {
 	Children []NavigationEntry `json:"children"`
 }
 
-// GetCatalogue queries the catalogue API and marshals its data
-func GetCatalogue() (*Response, error) {
+// Catalogue is an interface to the consumed API
+type Catalogue interface {
+	RequestCatalogue() (*Response, error)
+}
+
+// CatalogueImpl is a concrete implementation of catalogue interface
+type CatalogueImpl struct {
+}
+
+// RequestCatalogue queries the catalogue API and unmarshals its data into a Response struct
+func (CatalogueImpl) RequestCatalogue() (*Response, error) {
 
 	apiKey := viper.GetString("apiKey")
 
@@ -41,7 +47,7 @@ func GetCatalogue() (*Response, error) {
 	req.Header.Set("x-api-key", apiKey)
 
 	if err != nil {
-		log.Fatal(err)
+		return nil, errors.Wrap(err, "Error creating the Http request")
 	}
 
 	client := &http.Client{}
