@@ -3,6 +3,7 @@ package toysapi
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/apex/log"
 
@@ -34,7 +35,7 @@ func NewToysAPI() *ToysAPI {
 // GetLinks outputs all the links in an unmodified format
 func (t ToysAPI) GetLinks(w http.ResponseWriter, r *http.Request) {
 
-	data, err := t.catalogue.RequestCatalogue()
+	data, err := t.catalogue.RequestCatalogue(catalogueapi.APIURL)
 
 	if err != nil {
 		log.Errorf("Error retrieving data from Catalogue API: %s", err)
@@ -42,22 +43,22 @@ func (t ToysAPI) GetLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entries, err := handleParentParam(data, w, r)
+	entries, err := t.handleParentParam(data, w, r)
 
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
 	}
 
-	if err := handleSortParam(entries, w, r); err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+	if err := t.handleSortParam(entries, w, r); err != nil {
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
 	}
 
 	render.JSON(w, r, entries)
 }
 
-func handleParentParam(input *catalogueapi.Response, w http.ResponseWriter, r *http.Request) ([]CategoryEntry, error) {
+func (t ToysAPI) handleParentParam(input *catalogueapi.Response, w http.ResponseWriter, r *http.Request) ([]CategoryEntry, error) {
 
 	parent := r.URL.Query().Get("parent")
 
@@ -80,6 +81,27 @@ func handleParentParam(input *catalogueapi.Response, w http.ResponseWriter, r *h
 	}
 
 	return leafs, nil
+}
+
+func (t ToysAPI) handleSortParam(input []CategoryEntry, w http.ResponseWriter, r *http.Request) error {
+
+	sortParam := r.URL.Query().Get("sort")
+
+	if sortParam == "" {
+		return nil
+	}
+
+	sortArgs := strings.Split(sortParam, ",")
+
+	if len(sortArgs) > 2 {
+		log.WithFields(log.Fields{
+			"numArgs": len(sortArgs),
+		}).Debugf("Too many arguments for sorting")
+
+		return errors.New("Invalid numbers of sorting arguments")
+	}
+
+	return doSort(input, sortArgs)
 }
 
 func traverseCatalogue(entry *catalogueapi.NavigationEntry, leafs *[]CategoryEntry, parent string, found bool) {

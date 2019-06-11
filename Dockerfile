@@ -8,5 +8,4 @@ FROM alpine:latest
 RUN apk add --no-cache ca-certificates
 WORKDIR /root/
 COPY --from=builder /app .
-EXPOSE 8080
 CMD ["./otto-rest-api"]

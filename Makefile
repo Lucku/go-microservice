@@ -1,10 +1,6 @@
 .DEFAULT_GOAL = all
 
 # Go related commands
-GOCMD=go
-GOBUILD=$(GOCMD) build
-GOCLEAN=$(GOCMD) clean
-GOTEST=$(GOCMD) test ./...
 CMDDIR=cmd/toysapiserver/main.go
 
 # Detect the os so that we can build proper statically linked binary
@@ -37,20 +33,24 @@ build:
 docker:
 	docker build -t lucku/$(BINARY):$(GOARCH)-$(TAG) .
 
+.PHONY: docker-run
+docker-run: docker
+	docker run --rm --network host --name $(BINARY) lucku/$(BINARY):$(GOARCH)-$(TAG)
+
 # Runs unit tests.
 .PHONY: test
 test:
-	$(GOTEST)
+	go test -v ./...
 
 # Generates a coverage report
 .PHONY: cover
 cover:
-	${GOCMD} test -coverprofile=coverage.out ./... && ${GOCMD} tool cover -html=coverage.out
+	go test -coverprofile=coverage.out ./... && go tool cover -html=coverage.out
 
 # Remove coverage report and the binary.
 .SILENT: clean
 .PHONY: clean
 clean:
-	$(GOCLEAN) $(CMDDIR)
+	go clean $(CMDDIR)
 	@rm -f ${BINARY}-$(OS)-${GOARCH}
 	@rm -f coverage.out

@@ -9,7 +9,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-const apiURL = "https://mytoysiostestcase1.herokuapp.com/api/navigation"
+// APIURL is the url to the 'catalogue API' to be queried
+const APIURL = "https://mytoysiostestcase1.herokuapp.com/api/navigation"
 
 // Response is the root of the JSON message of the catalogue
 type Response struct {
@@ -27,15 +28,15 @@ type NavigationEntry struct {
 
 // Catalogue is an interface to the consumed API
 type Catalogue interface {
-	RequestCatalogue() (*Response, error)
+	RequestCatalogue(string) (*Response, error)
 }
 
-// CatalogueImpl is a concrete implementation of catalogue interface
+// CatalogueImpl is a concrete implementation of the catalogue interface
 type CatalogueImpl struct {
 }
 
 // RequestCatalogue queries the catalogue API and unmarshals its data into a Response struct
-func (CatalogueImpl) RequestCatalogue() (*Response, error) {
+func (CatalogueImpl) RequestCatalogue(url string) (*Response, error) {
 
 	apiKey := viper.GetString("apiKey")
 
@@ -43,7 +44,7 @@ func (CatalogueImpl) RequestCatalogue() (*Response, error) {
 		return nil, errors.New("Error due to undefined api key in the config file")
 	}
 
-	req, err := http.NewRequest("GET", apiURL, nil)
+	req, err := http.NewRequest("GET", url, nil)
 	req.Header.Set("x-api-key", apiKey)
 
 	if err != nil {

@@ -1,47 +1,77 @@
 package toysapi
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
+
+	"github.com/spf13/viper"
 
 	"github.com/lucku/otto-coding-challenge/api/catalogueapi"
 	"github.com/stretchr/testify/assert"
 )
 
-/*
-func checkResponseCode(t *testing.T, expected, actual int) {
-	if expected != actual {
-		t.Errorf("Expected response code %d. Got %d\n", expected, actual)
-	}
-}
-
-func executeRequest(req *http.Request) *httptest.ResponseRecorder {
-	rr := httptest.NewRecorder()
-	a.Router.ServeHTTP(rr, req)
-
-	return rr
-}
-*/
-
 type CatalogueMock struct {
 	content catalogueapi.Response
 }
 
-func (m CatalogueMock) RequestCatalogue() (*catalogueapi.Response, error) {
+func (m CatalogueMock) RequestCatalogue(url string) (*catalogueapi.Response, error) {
 	return &m.content, nil
+}
+
+type ErroneousCatalogue struct {
+}
+
+func (ErroneousCatalogue) RequestCatalogue(url string) (*catalogueapi.Response, error) {
+	return nil, errors.New("Error")
 }
 
 func createNavigationEntry(typename, label, url string, fields ...catalogueapi.NavigationEntry) catalogueapi.NavigationEntry {
 	return catalogueapi.NavigationEntry{TypeName: typename, Label: label, URL: url, Children: fields}
 }
 
-func TestGetLinks(t *testing.T) {
+func init() {
+	viper.Set("apiKey", "hz7JPdKK069Ui1TRxxd1k8BQcocSVDkj219DVzzD")
+}
 
-	nLink := createNavigationEntry("link", "Testlink", "www.testlink.de")
-	nNode := createNavigationEntry("node", "Testnode", "", nLink)
-	nSec := createNavigationEntry("section", "Testsection", "", nNode)
+func sendRequest(h http.HandlerFunc, requestStr string) *httptest.ResponseRecorder {
+	request, _ := http.NewRequest("GET", requestStr, nil)
+	response := httptest.NewRecorder()
+	h.ServeHTTP(response, request)
+	return response
+}
+
+func TestGetLinksTwoSections(t *testing.T) {
+
+	nLink1 := createNavigationEntry("link", "link1", "www.link1.de")
+	nLink2 := createNavigationEntry("link", "link2", "www.link2.de")
+	nNode1 := createNavigationEntry("node", "node1", "", nLink1)
+	nNode2 := createNavigationEntry("node", "node2", "", nLink2)
+	nSec1 := createNavigationEntry("section", "section1", "", nNode1)
+	nSec2 := createNavigationEntry("section", "section2", "", nNode2)
+
+	r := catalogueapi.Response{NavigationEntries: []catalogueapi.NavigationEntry{nSec1, nSec2}}
+
+	m := CatalogueMock{r}
+
+	mToys := ToysAPI{m}
+
+	response := sendRequest(http.HandlerFunc(mToys.GetLinks), "/links")
+	assert.Equal(t, 200, response.Code, "OK response is expected")
+
+	expected := `[{"label":"section1 - node1 - link1","url":"www.link1.de"},` +
+		`{"label":"section2 - node2 - link2","url":"www.link2.de"}]`
+
+	assert.JSONEq(t, expected, response.Body.String(), "API response is incorrect")
+}
+
+func TestGetLinksTwoEntries(t *testing.T) {
+
+	nLink1 := createNavigationEntry("link", "link1", "www.link1.de")
+	nLink2 := createNavigationEntry("link", "link2", "www.link2.de")
+	nNode := createNavigationEntry("node", "node1", "", nLink1, nLink2)
+	nSec := createNavigationEntry("section", "section1", "", nNode)
 
 	r := catalogueapi.Response{NavigationEntries: []catalogueapi.NavigationEntry{nSec}}
 
@@ -49,37 +79,118 @@ func TestGetLinks(t *testing.T) {
 
 	mToys := ToysAPI{m}
 
-	request, _ := http.NewRequest("GET", "/links", nil)
-	response := httptest.NewRecorder()
-	handler := http.HandlerFunc(mToys.GetLinks)
-	handler.ServeHTTP(response, request)
+	response := sendRequest(http.HandlerFunc(mToys.GetLinks), "/links")
 	assert.Equal(t, 200, response.Code, "OK response is expected")
 
-	expected := `[{"label":"Testsection - Testnode - Testlink","url":"www.testlink.de"}]`
-	// Cut the trailing newline artificially added by the json encoder
-	actual := strings.Trim(response.Body.String(), "\n")
+	expected := `[{"label":"section1 - node1 - link1","url":"www.link1.de"},` +
+		`{"label":"section1 - node1 - link2","url":"www.link2.de"}]`
 
-	assert.Equal(t, expected, actual, "API Response is incorrect")
+	assert.JSONEq(t, expected, response.Body.String(), "API Response is incorrect")
 }
 
 func TestGetLinksParent(t *testing.T) {
 
+	nLink1 := createNavigationEntry("link", "link1", "www.link1.de")
+	nLink2 := createNavigationEntry("link", "link2", "www.link2.de")
+	nNode1 := createNavigationEntry("node", "node1", "", nLink1)
+	nNode2 := createNavigationEntry("node", "node2", "", nLink2)
+	nSec1 := createNavigationEntry("section", "section1", "", nNode1)
+	nSec2 := createNavigationEntry("section", "section2", "", nNode2)
+
+	r := catalogueapi.Response{NavigationEntries: []catalogueapi.NavigationEntry{nSec1, nSec2}}
+	m := CatalogueMock{r}
+	mToys := ToysAPI{m}
+
+	response := sendRequest(http.HandlerFunc(mToys.GetLinks), "/links?parent=section1")
+	assert.Equal(t, 200, response.Code, "OK response is expected")
+	expected := `[{"label":"node1 - link1","url":"www.link1.de"}]`
+	assert.JSONEq(t, expected, response.Body.String(), "API Response is incorrect")
+
+	response = sendRequest(http.HandlerFunc(mToys.GetLinks), "/links?parent=section2")
+	assert.Equal(t, 200, response.Code, "OK response is expected")
+	expected = `[{"label":"node2 - link2","url":"www.link2.de"}]`
+	assert.JSONEq(t, expected, response.Body.String(), "API Response is incorrect")
+
+	response = sendRequest(http.HandlerFunc(mToys.GetLinks), "/links?parent=node1")
+	assert.Equal(t, 200, response.Code, "OK response is expected")
+	expected = `[{"label":"link1","url":"www.link1.de"}]`
+	assert.JSONEq(t, expected, response.Body.String(), "API Response is incorrect")
+
+	response = sendRequest(http.HandlerFunc(mToys.GetLinks), "/links?parent=node2")
+	assert.Equal(t, 200, response.Code, "OK response is expected")
+	expected = `[{"label":"link2","url":"www.link2.de"}]`
+	assert.JSONEq(t, expected, response.Body.String(), "API Response is incorrect")
 }
 
-func TestGetLinksEmptyParent(t *testing.T) {
-
-	request, _ := http.NewRequest("GET", "/links?parent", nil)
-	response := httptest.NewRecorder()
-	handler := http.HandlerFunc(NewToysAPI().GetLinks)
-	handler.ServeHTTP(response, request)
-	assert.Equal(t, http.StatusBadRequest, response.Code, "Bad request status expected")
+func TestGetLinksInvalidParent(t *testing.T) {
+	response := sendRequest(http.HandlerFunc(NewToysAPI().GetLinks), "/links?parent=test")
+	assert.Equal(t, http.StatusNotFound, response.Code, "NotFound status expected")
 }
 
-func TestGetLinksWrongParent(t *testing.T) {
+func TestGetLinksQueryAPIError(t *testing.T) {
+	e := ErroneousCatalogue{}
+	response := sendRequest(http.HandlerFunc(ToysAPI{e}.GetLinks), "/links?parent=test")
+	assert.Equal(t, http.StatusInternalServerError, response.Code, "InternalServerError status expected")
+}
 
-	request, _ := http.NewRequest("GET", "/links?parent=test", nil)
-	response := httptest.NewRecorder()
-	handler := http.HandlerFunc(NewToysAPI().GetLinks)
-	handler.ServeHTTP(response, request)
-	assert.Equal(t, http.StatusBadRequest, response.Code, "Bad request status expected")
+func TestHandleSortTooManyArgs(t *testing.T) {
+
+	nLink := createNavigationEntry("link", "link", "www.link.de")
+	nNode := createNavigationEntry("node", "node", "", nLink)
+	nSec := createNavigationEntry("section", "section1", "", nNode)
+
+	r := catalogueapi.Response{NavigationEntries: []catalogueapi.NavigationEntry{nSec}}
+	m := CatalogueMock{r}
+	mToys := ToysAPI{m}
+
+	response := sendRequest(http.HandlerFunc(mToys.GetLinks), "/links?sort=one,two,three")
+
+	assert.Equal(t, http.StatusNotFound, response.Code, "NotFound status expected")
+}
+
+func TestGetLinksParentAndSort(t *testing.T) {
+
+	nLink1 := createNavigationEntry("link", "link1", "www.link1.de")
+	nLink2 := createNavigationEntry("link", "link2", "www.link2.de")
+	nLink3 := createNavigationEntry("link", "link3", "www.link3.de")
+	nLink4 := createNavigationEntry("link", "link4", "www.link4.de")
+	nNode1 := createNavigationEntry("node", "node1", "", nLink1, nLink3)
+	nNode2 := createNavigationEntry("node", "node2", "", nLink4, nLink2)
+	nSec := createNavigationEntry("section", "section1", "", nNode1, nNode2)
+
+	r := catalogueapi.Response{NavigationEntries: []catalogueapi.NavigationEntry{nSec}}
+	m := CatalogueMock{r}
+	mToys := ToysAPI{m}
+
+	response := sendRequest(http.HandlerFunc(mToys.GetLinks), "/links?sort=label")
+
+	expected := `[{"label":"section1 - node2 - link4","url":"www.link4.de"},` +
+		`{"label":"section1 - node2 - link2","url":"www.link2.de"},` +
+		`{"label":"section1 - node1 - link3","url":"www.link3.de"},` +
+		`{"label":"section1 - node1 - link1","url":"www.link1.de"}]`
+
+	assert.JSONEq(t, expected, response.Body.String(), "API Response is incorrect")
+
+	response = sendRequest(http.HandlerFunc(mToys.GetLinks), "/links?parent=node1&sort=url:asc")
+
+	expected = `[{"label":"link1","url":"www.link1.de"},` +
+		`{"label":"link3","url":"www.link3.de"}]`
+
+	assert.JSONEq(t, expected, response.Body.String(), "API Response is incorrect")
+
+	response = sendRequest(http.HandlerFunc(mToys.GetLinks), "/links?parent=node2&sort=label,url")
+
+	expected = `[{"label":"link4","url":"www.link4.de"},` +
+		`{"label":"link2","url":"www.link2.de"}]`
+
+	assert.JSONEq(t, expected, response.Body.String(), "API Response is incorrect")
+
+	response = sendRequest(http.HandlerFunc(mToys.GetLinks), "/links?parent=section1&sort=url:asc")
+
+	expected = `[{"label":"node1 - link1","url":"www.link1.de"},` +
+		`{"label":"node2 - link2","url":"www.link2.de"},` +
+		`{"label":"node1 - link3","url":"www.link3.de"},` +
+		`{"label":"node2 - link4","url":"www.link4.de"}]`
+
+	assert.JSONEq(t, expected, response.Body.String(), "API Response is incorrect")
 }

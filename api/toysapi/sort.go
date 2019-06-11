@@ -2,12 +2,9 @@ package toysapi
 
 import (
 	"errors"
-	"net/http"
 	"reflect"
 	"sort"
 	"strings"
-
-	"github.com/apex/log"
 )
 
 const (
@@ -15,32 +12,18 @@ const (
 	orderDesc string = "desc"
 )
 
+// Sort is a helper struct that groups sorting attributes together with their order
 type Sort struct {
 	attribute string
 	order     string
 }
 
-func handleSortParam(input []CategoryEntry, w http.ResponseWriter, r *http.Request) error {
-
-	sortParam := r.URL.Query().Get("sort")
-
-	if sortParam == "" {
-		return nil
-	}
-
-	sortArgs := strings.Split(sortParam, ",")
-
-	if len(sortArgs) > 2 {
-		log.WithFields(log.Fields{
-			"numArgs": len(sortArgs),
-		}).Debugf("Too many arguments for sorting")
-
-		return errors.New("Invalid numbers of sorting arguments")
-	}
+// Sort takes a list of category entries and sorts it due to the given argument list
+func doSort(entries []CategoryEntry, args []string) error {
 
 	criteria := make([]Sort, 0, 2)
 
-	for _, arg := range sortArgs {
+	for _, arg := range args {
 
 		elemOrder := orderDesc
 
@@ -63,19 +46,16 @@ func handleSortParam(input []CategoryEntry, w http.ResponseWriter, r *http.Reque
 		criteria = append(criteria, Sort{attr, elemOrder})
 	}
 
-	doSort(input, criteria)
+	if len(criteria) > 1 && criteria[0].attribute == criteria[1].attribute {
+		return errors.New("Invalid sorting criteria")
+	}
 
-	return nil
-}
-
-func doSort(input []CategoryEntry, criteria []Sort) {
-
-	sort.Slice(input, func(i, j int) bool {
+	sort.Slice(entries, func(i, j int) bool {
 
 		for _, c := range criteria {
 
-			e1 := getFieldString(&input[i], c.attribute)
-			e2 := getFieldString(&input[j], c.attribute)
+			e1 := getFieldString(&entries[i], c.attribute)
+			e2 := getFieldString(&entries[j], c.attribute)
 
 			if c.order == orderDesc {
 				if e1 > e2 {
@@ -94,6 +74,8 @@ func doSort(input []CategoryEntry, criteria []Sort) {
 
 		return true
 	})
+
+	return nil
 }
 
 func transformSortParam(param string) string {
