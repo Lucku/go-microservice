@@ -5,7 +5,6 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"github.com/go-chi/render"
 	"github.com/lucku/otto-coding-challenge/api/toysapi"
 )
 
@@ -14,7 +13,6 @@ func Routes() *chi.Mux {
 
 	router := chi.NewRouter()
 	router.Use(
-		render.SetContentType(render.ContentTypeJSON),
 		middleware.Logger,
 		middleware.DefaultCompress,
 		middleware.RedirectSlashes,

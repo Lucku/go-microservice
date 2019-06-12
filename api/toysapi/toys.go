@@ -1,13 +1,13 @@
 package toysapi
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/apex/log"
-
-	"github.com/go-chi/render"
 	"github.com/lucku/otto-coding-challenge/api/catalogueapi"
 )
 
@@ -30,6 +30,17 @@ type ToysAPI struct {
 // NewToysAPI returns a new instance of the toys api
 func NewToysAPI() *ToysAPI {
 	return &ToysAPI{catalogueapi.CatalogueImpl{}}
+}
+
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	response := &bytes.Buffer{}
+	enc := json.NewEncoder(response)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "    ")
+	enc.Encode(payload)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(response.Bytes())
 }
 
 // GetLinks outputs all the links in an unmodified format
@@ -55,7 +66,7 @@ func (t ToysAPI) GetLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.JSON(w, r, entries)
+	respondWithJSON(w, http.StatusOK, entries)
 }
 
 func (t ToysAPI) handleParentParam(input *catalogueapi.Response, w http.ResponseWriter, r *http.Request) ([]CategoryEntry, error) {

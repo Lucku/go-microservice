@@ -1,9 +1,8 @@
 .DEFAULT_GOAL = all
 
-# Go related commands
 CMDDIR=cmd/toysapiserver/main.go
 
-# Detect the os so that we can build proper statically linked binary
+# Detect the os for naming reasons
 OS := $(shell uname -s | awk '{print tolower($$0)}')
 
 # Get a short hash of the git had for building images
@@ -18,7 +17,7 @@ GOARCH = amd64
 .PHONY: all
 all: test build docker
 
- # Runs the application after building it first
+ # Run the application after building it first
 .PHONY: run
 run: build
 	./$(BINARY)-$(OS)-$(GOARCH)
@@ -28,29 +27,31 @@ run: build
 build:
 	env CGO_ENABLED=0 GOOS=$(OS) GOARCH=${GOARCH} go build -o ${BINARY}-$(OS)-${GOARCH} $(CMDDIR) ;
 
-# Docker build internally (within Dockerfile) triggers "make bin", which creates a "linux" binary.
+# Build the docker image
 .PHONY: docker
 docker:
 	docker build -t lucku/$(BINARY):$(GOARCH)-$(TAG) .
 
+# Run the Docker image (will only properly work on Linux)
 .PHONY: docker-run
 docker-run: docker
 	docker run --rm --network host --name $(BINARY) lucku/$(BINARY):$(GOARCH)-$(TAG)
 
-# Runs unit tests.
+# Run unit tests
 .PHONY: test
 test:
 	go test -v ./...
 
-# Generates a coverage report
+# Generate a coverage report
 .PHONY: cover
 cover:
 	go test -coverprofile=coverage.out ./... && go tool cover -html=coverage.out
 
-# Remove coverage report and the binary.
+# Remove coverage report, binary, and Docker image
 .SILENT: clean
 .PHONY: clean
 clean:
 	go clean $(CMDDIR)
 	@rm -f ${BINARY}-$(OS)-${GOARCH}
 	@rm -f coverage.out
+	docker rmi -f lucku/$(BINARY):$(GOARCH)-$(TAG) > /dev/null 2>&1
